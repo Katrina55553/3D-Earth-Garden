@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Object3D, Quaternion, Vector3, Mesh, RingGeometry, MeshBasicMaterial, DoubleSide } from "three";
+import { Object3D, Quaternion, Vector3, Mesh, RingGeometry, MeshBasicMaterial, DoubleSide, SphereGeometry, MeshStandardMaterial } from "three";
 import { latLngToPosition } from "@/utils/coordinates";
 import { PlantData } from "@/data/plants";
 
@@ -20,6 +20,9 @@ interface PlantModelProps {
   onClick: () => void;
 }
 
+const dotGeo = new SphereGeometry(0.025, 8, 8);
+const ringGeo = new RingGeometry(0.08, 0.12, 32);
+
 export default function PlantModel({
   plant,
   isHovered,
@@ -29,7 +32,6 @@ export default function PlantModel({
   onClick,
 }: PlantModelProps) {
   const groupRef = useRef<Object3D>(null);
-  const ringRef = useRef<Mesh>(null);
 
   const position = useMemo(
     () => latLngToPosition(plant.latitude, plant.longitude, 1.22),
@@ -54,10 +56,12 @@ export default function PlantModel({
     return cloned;
   }, [scene]);
 
-  const ringGeometry = useMemo(
-    () => new RingGeometry(0.06, 0.09, 32),
-    []
-  );
+  const ringRotation = useMemo(() => {
+    _normal.set(...position).normalize();
+    const q = new Quaternion();
+    q.setFromUnitVectors(new Vector3(0, 0, 1), _normal);
+    return q;
+  }, [position]);
 
   const ringMaterial = useMemo(
     () =>
@@ -65,17 +69,16 @@ export default function PlantModel({
         color: isSelected ? "#ffd700" : "#4ade80",
         side: DoubleSide,
         transparent: true,
-        opacity: 0.9,
+        opacity: isHovered ? 1 : 0.7,
         depthWrite: false,
       }),
-    [isSelected]
+    [isSelected, isHovered]
   );
 
-  const targetScale = isHovered ? 1.4 : 1;
+  const targetScale = isHovered ? 1.3 : 1;
   const currentScale = useRef(1);
 
   useFrame((_, delta) => {
-    // Smooth scale transition
     currentScale.current +=
       (targetScale - currentScale.current) * Math.min(delta * 8, 1);
 
@@ -83,14 +86,6 @@ export default function PlantModel({
       groupRef.current.scale.setScalar(currentScale.current);
     }
   });
-
-  // Rotate ring to face outward from sphere
-  const ringRotation = useMemo(() => {
-    _normal.set(...position).normalize();
-    const q = new Quaternion();
-    q.setFromUnitVectors(new Vector3(0, 0, 1), _normal);
-    return q;
-  }, [position]);
 
   return (
     <group
@@ -110,16 +105,28 @@ export default function PlantModel({
         onClick();
       }}
     >
-      <primitive object={clonedScene} scale={0.015} />
+      {/* Base dot marker — always visible */}
+      <mesh geometry={dotGeo} position={[0, 0.02, 0]}>
+        <meshStandardMaterial
+          color={isSelected ? "#ffd700" : isHovered ? "#4ade80" : "#ffffff"}
+          emissive={isSelected ? "#ffd700" : isHovered ? "#22c55e" : "#888888"}
+          emissiveIntensity={0.6}
+          roughness={0.3}
+        />
+      </mesh>
+
+      {/* Hover/select glow ring */}
       {(isHovered || isSelected) && (
         <mesh
-          ref={ringRef}
-          geometry={ringGeometry}
+          geometry={ringGeo}
           material={ringMaterial}
           quaternion={ringRotation}
           renderOrder={1}
         />
       )}
+
+      {/* Plant 3D model */}
+      <primitive object={clonedScene} scale={0.06} />
     </group>
   );
 }
