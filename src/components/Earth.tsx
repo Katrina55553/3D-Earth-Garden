@@ -5,7 +5,11 @@ import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import { Mesh } from "three";
 
-export default function Earth() {
+interface EarthProps {
+  onClick?: () => void;
+}
+
+export default function Earth({ onClick }: EarthProps) {
   const earthRef = useRef<Mesh>(null);
   const earthTexture = useTexture(
     "https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg"
@@ -18,7 +22,15 @@ export default function Earth() {
   });
 
   return (
-    <mesh ref={earthRef} castShadow receiveShadow>
+    <mesh
+      ref={earthRef}
+      castShadow
+      receiveShadow
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+    >
       <sphereGeometry args={[1.2, 64, 64]} />
       <meshStandardMaterial
         map={earthTexture}
