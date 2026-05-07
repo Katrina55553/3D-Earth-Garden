@@ -3,7 +3,17 @@
 import { useRef, useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Object3D, Quaternion, Vector3, Mesh, RingGeometry, MeshBasicMaterial, DoubleSide, SphereGeometry, MeshStandardMaterial, Material } from "three";
+import {
+  Object3D,
+  Quaternion,
+  Vector3,
+  Mesh,
+  RingGeometry,
+  MeshBasicMaterial,
+  DoubleSide,
+  Material,
+  Color,
+} from "three";
 import { latLngToPosition } from "@/utils/coordinates";
 import { PlantData } from "@/data/plants";
 
@@ -21,8 +31,8 @@ interface PlantModelProps {
   onClick: () => void;
 }
 
-const dotGeo = new SphereGeometry(0.025, 8, 8);
-const ringGeo = new RingGeometry(0.08, 0.12, 32);
+// Shared grass-like ground glow disc
+const glowGeo = new RingGeometry(0.04, 0.14, 32);
 
 export default function PlantModel({
   plant,
@@ -58,28 +68,26 @@ export default function PlantModel({
     return cloned;
   }, [scene]);
 
-  const ringRotation = useMemo(() => {
+  const glowRotation = useMemo(() => {
     _normal.set(...position).normalize();
     const q = new Quaternion();
     q.setFromUnitVectors(new Vector3(0, 0, 1), _normal);
     return q;
   }, [position]);
 
-  const ringMaterial = useMemo(
-    () =>
-      new MeshBasicMaterial({
-        color: isSelected ? "#ffd700" : "#4ade80",
-        side: DoubleSide,
-        transparent: true,
-        opacity: isHovered ? 1 : 0.7,
-        depthWrite: false,
-      }),
-    [isSelected, isHovered]
-  );
+  const glowMaterial = useMemo(() => {
+    const color = isSelected ? "#ffd700" : "#4ade80";
+    return new MeshBasicMaterial({
+      color,
+      side: DoubleSide,
+      transparent: true,
+      opacity: isSelected ? 0.7 : 0.45,
+      depthWrite: false,
+    });
+  }, [isSelected]);
 
-  const targetScale = isHovered ? 1.3 : 1;
+  const targetScale = isHovered ? 1.35 : 1;
   const currentScale = useRef(1);
-
   const dimmedOpacity = useRef(0.15);
 
   useFrame((_, delta) => {
@@ -91,7 +99,7 @@ export default function PlantModel({
     }
 
     // Smooth dimmed transition
-    const targetDimmed = dimmed ? 0.15 : 1;
+    const targetDimmed = dimmed ? 0.12 : 1;
     dimmedOpacity.current +=
       (targetDimmed - dimmedOpacity.current) * Math.min(delta * 6, 1);
 
@@ -112,8 +120,6 @@ export default function PlantModel({
     });
   });
 
-  const dotVisible = dimmedOpacity.current > 0.1; // Only show dot if not completely dimmed
-
   return (
     <group
       ref={groupRef}
@@ -132,31 +138,19 @@ export default function PlantModel({
         if (!dimmed) onClick();
       }}
     >
-      {/* Base dot marker */}
-      <mesh geometry={dotGeo} position={[0, 0.02, 0]}>
-        <meshStandardMaterial
-          color={isSelected ? "#ffd700" : isHovered ? "#4ade80" : "#ffffff"}
-          emissive={isSelected ? "#ffd700" : isHovered ? "#22c55e" : "#888888"}
-          emissiveIntensity={0.6}
-          roughness={0.3}
-          transparent
-          opacity={dimmed ? 0.15 : 1}
-          depthWrite={!dimmed}
-        />
-      </mesh>
-
-      {/* Hover/select glow ring */}
+      {/* Ground glow disc — appears on hover/select */}
       {(isHovered || isSelected) && !dimmed && (
         <mesh
-          geometry={ringGeo}
-          material={ringMaterial}
-          quaternion={ringRotation}
+          geometry={glowGeo}
+          material={glowMaterial}
+          quaternion={glowRotation}
+          position={[0, 0.01, 0]}
           renderOrder={1}
         />
       )}
 
       {/* Plant 3D model */}
-      <primitive object={clonedScene} scale={0.06} />
+      <primitive object={clonedScene} scale={0.08} />
     </group>
   );
 }
