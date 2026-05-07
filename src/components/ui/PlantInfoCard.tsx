@@ -4,12 +4,17 @@ import { useAppContext } from "@/store/AppContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function PlantInfoCard() {
-  const { selectedPlant, setSelectedPlant } = useAppContext();
+  const { selectedSpeciesName, selectedSpeciesPlants, setSelectedSpecies } =
+    useAppContext();
+
+  if (selectedSpeciesPlants.length === 0) return null;
+  const plant = selectedSpeciesPlants[0];
 
   return (
     <AnimatePresence>
-      {selectedPlant && (
+      {selectedSpeciesName && (
         <motion.div
+          key={selectedSpeciesName}
           initial={{ opacity: 0, x: 40, scale: 0.95 }}
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={{ opacity: 0, x: 40, scale: 0.95 }}
@@ -18,27 +23,26 @@ export default function PlantInfoCard() {
         >
           {/* Close button */}
           <button
-            onClick={() => setSelectedPlant(null)}
+            onClick={() => setSelectedSpecies(null)}
             className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
           >
             <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+              width="14" height="14" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2"
             >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
 
-          {/* Plant name */}
-          <h2 className="text-xl font-bold text-white">
-            {selectedPlant.name}
-          </h2>
+          {/* Plant name + count */}
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-white">{plant.name}</h2>
+            <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-400">
+              ×{selectedSpeciesPlants.length}
+            </span>
+          </div>
           <p className="mt-0.5 text-xs italic text-white/50">
-            {selectedPlant.latinName}
+            {plant.latinName}
           </p>
 
           {/* Divider */}
@@ -46,15 +50,18 @@ export default function PlantInfoCard() {
 
           {/* Info rows */}
           <div className="space-y-2.5 text-sm">
-            <InfoRow label="大洲" value={selectedPlant.continent} />
-            <InfoRow label="植被类型" value={selectedPlant.vegetationType} />
-            <InfoRow label="气候特征" value={selectedPlant.climateFeature} />
-            <InfoRow label="坐标" value={`${selectedPlant.latitude.toFixed(1)}°N, ${Math.abs(selectedPlant.longitude).toFixed(1)}°${selectedPlant.longitude >= 0 ? "E" : "W"}`} />
+            <InfoRow label="大洲" value={plant.continent} />
+            <InfoRow label="植被类型" value={plant.vegetationType} />
+            <InfoRow label="气候特征" value={plant.climateFeature} />
+            <InfoRow
+              label="分布"
+              value={`${selectedSpeciesPlants.length} 个种植点`}
+            />
           </div>
 
           {/* Description */}
           <p className="mt-3 text-sm leading-relaxed text-white/70">
-            {selectedPlant.description}
+            {plant.description}
           </p>
         </motion.div>
       )}

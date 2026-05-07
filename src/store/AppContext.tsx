@@ -4,7 +4,6 @@ import {
   createContext,
   useContext,
   useState,
-  useCallback,
   useMemo,
   ReactNode,
 } from "react";
@@ -14,15 +13,13 @@ export type ContinentFilter = "全部" | string;
 export type TypeFilter = "全部" | string;
 export type ClimateFilter = "全部" | string;
 
-interface AppState {
-  selectedPlant: PlantData | null;
+interface AppContextValue {
+  selectedSpeciesName: string | null;
+  selectedSpeciesPlants: PlantData[];
   continentFilter: ContinentFilter;
   typeFilter: TypeFilter;
   climateFilter: ClimateFilter;
-}
-
-interface AppContextValue extends AppState {
-  setSelectedPlant: (plant: PlantData | null) => void;
+  setSelectedSpecies: (name: string | null) => void;
   setContinentFilter: (filter: ContinentFilter) => void;
   setTypeFilter: (filter: TypeFilter) => void;
   setClimateFilter: (filter: ClimateFilter) => void;
@@ -34,7 +31,7 @@ interface AppContextValue extends AppState {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [selectedPlant, setSelectedPlant] = useState<PlantData | null>(null);
+  const [selectedSpeciesName, setSelectedSpeciesName] = useState<string | null>(null);
   const [continentFilter, setContinentFilter] = useState<ContinentFilter>("全部");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("全部");
   const [climateFilter, setClimateFilter] = useState<ClimateFilter>("全部");
@@ -51,13 +48,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [continentFilter, typeFilter, climateFilter]);
 
+  const selectedSpeciesPlants = useMemo(
+    () =>
+      selectedSpeciesName
+        ? plants.filter((p) => p.name === selectedSpeciesName)
+        : [],
+    [selectedSpeciesName]
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
-      selectedPlant,
+      selectedSpeciesName,
+      selectedSpeciesPlants,
       continentFilter,
       typeFilter,
       climateFilter,
-      setSelectedPlant,
+      setSelectedSpecies: setSelectedSpeciesName,
       setContinentFilter,
       setTypeFilter,
       setClimateFilter,
@@ -66,7 +72,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       totalCount: plants.length,
     }),
     [
-      selectedPlant,
+      selectedSpeciesName,
+      selectedSpeciesPlants,
       continentFilter,
       typeFilter,
       climateFilter,
@@ -83,7 +90,6 @@ export function useAppContext() {
   return ctx;
 }
 
-// Derived data for filter options
 export function getFilterOptions() {
   const continents = [...new Set(plants.map((p) => p.continent))];
   const types = [...new Set(plants.map((p) => p.vegetationType))];

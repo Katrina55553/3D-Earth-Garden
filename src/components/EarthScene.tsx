@@ -22,7 +22,7 @@ function PlantsLayer({
   onHover: (id: string | null) => void;
   onSelect: (plant: PlantData | null) => void;
 }) {
-  const { filteredPlants } = useAppContext();
+  const { filteredPlants, selectedSpeciesName } = useAppContext();
 
   const visibleSet = useMemo(
     () => new Set(filteredPlants.map((p) => p.id)),
@@ -36,7 +36,7 @@ function PlantsLayer({
           <PlantModel
             plant={plant}
             isHovered={hoveredId === plant.id}
-            isSelected={false}
+            isSelected={selectedSpeciesName === plant.name}
             dimmed={!visibleSet.has(plant.id)}
             onHoverStart={() => onHover(plant.id)}
             onHoverEnd={() => onHover(null)}
@@ -78,22 +78,17 @@ function flyBackToDefault(
   tl.to(
     startPos,
     {
-      x: endPos.x,
-      y: endPos.y,
-      z: endPos.z,
+      x: endPos.x, y: endPos.y, z: endPos.z,
       duration: 1,
       ease: "power2.inOut",
       onUpdate: () => camera.position.copy(startPos),
     },
     0
   );
-
   tl.to(
     startTarget,
     {
-      x: endTarget.x,
-      y: endTarget.y,
-      z: endTarget.z,
+      x: endTarget.x, y: endTarget.y, z: endTarget.z,
       duration: 1,
       ease: "power2.inOut",
       onUpdate: () => {
@@ -107,22 +102,31 @@ function flyBackToDefault(
   );
 }
 
-function flyToPlant(
-  plant: PlantData,
+function flyToSpecies(
+  speciesName: string,
   camera: THREE.Camera,
   controls: OrbitControlsImpl | null,
   animatingRef: React.MutableRefObject<boolean>
 ) {
   if (animatingRef.current) return;
+
+  const group = plants.filter((p) => p.name === speciesName);
+  if (group.length === 0) return;
+
+  // Compute centroid of all plants in this species
+  const centroid = new THREE.Vector3(0, 0, 0);
+  group.forEach((p) => {
+    const pos = latLngToPosition(p.latitude, p.longitude, 1.22);
+    centroid.add(new THREE.Vector3(...pos));
+  });
+  centroid.divideScalar(group.length);
+
+  const normal = centroid.clone().normalize();
+  // Offset camera outward based on group spread
+  const cameraOffset = 0.7 + group.length * 0.04;
+  const cameraTarget = centroid.clone().add(normal.multiplyScalar(cameraOffset));
+
   animatingRef.current = true;
-
-  const targetPos = new THREE.Vector3(
-    ...latLngToPosition(plant.latitude, plant.longitude, 1.22)
-  );
-  const normal = targetPos.clone().normalize();
-  const cameraTarget = targetPos.clone().add(normal.multiplyScalar(0.7));
-  const endTarget = targetPos.clone();
-
   if (controls) controls.enabled = false;
 
   const startPos = camera.position.clone();
@@ -134,7 +138,7 @@ function flyToPlant(
     onComplete: () => {
       animatingRef.current = false;
       if (controls) {
-        controls.target.copy(endTarget);
+        controls.target.copy(centroid);
         controls.update();
         controls.enabled = true;
       }
@@ -144,22 +148,17 @@ function flyToPlant(
   tl.to(
     startPos,
     {
-      x: cameraTarget.x,
-      y: cameraTarget.y,
-      z: cameraTarget.z,
+      x: cameraTarget.x, y: cameraTarget.y, z: cameraTarget.z,
       duration: 1.2,
       ease: "power2.inOut",
       onUpdate: () => camera.position.copy(startPos),
     },
     0
   );
-
   tl.to(
     startTarget,
     {
-      x: endTarget.x,
-      y: endTarget.y,
-      z: endTarget.z,
+      x: centroid.x, y: centroid.y, z: centroid.z,
       duration: 1.2,
       ease: "power2.inOut",
       onUpdate: () => {
@@ -178,7 +177,7 @@ function SceneContent() {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const isAnimating = useRef(false);
-  const { selectedPlant, setSelectedPlant } = useAppContext();
+  const { selectedSpeciesName, setSelectedSpecies } = useAppContext();
 
   const handleHover = useCallback((id: string | null) => {
     setHoveredId(id);
@@ -188,26 +187,27 @@ function SceneContent() {
   const handleSelect = useCallback(
     (plant: PlantData | null) => {
       if (!plant) {
-        setSelectedPlant(null);
+        setSelectedSpecies(null);
         flyBackToDefault(camera, controlsRef.current, isAnimating);
-      } else if (selectedPlant?.id === plant.id) {
-        setSelectedPlant(null);
+      } else if (selectedSpeciesName === plant.name) {
+        // Click same species → deselect
+        setSelectedSpecies(null);
         flyBackToDefault(camera, controlsRef.current, isAnimating);
       } else {
-        setSelectedPlant(plant);
-        flyToPlant(plant, camera, controlsRef.current, isAnimating);
+        setSelectedSpecies(plant.name);
+        flyToSpecies(plant.name, camera, controlsRef.current, isAnimating);
       }
     },
-    [camera, selectedPlant, setSelectedPlant]
+    [camera, selectedSpeciesName, setSelectedSpecies]
   );
 
   const handleEarthClick = useCallback(() => {
-    if (selectedPlant) {
-      setSelectedPlant(null);
+    if (selectedSpeciesName) {
+      setSelectedSpecies(null);
       document.body.style.cursor = "default";
       flyBackToDefault(camera, controlsRef.current, isAnimating);
     }
-  }, [camera, selectedPlant, setSelectedPlant]);
+  }, [camera, selectedSpeciesName, setSelectedSpecies]);
 
   return (
     <>
