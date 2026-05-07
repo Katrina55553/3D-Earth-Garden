@@ -3,7 +3,7 @@
 import { useRef, useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Object3D, Quaternion, Vector3, Mesh, RingGeometry, MeshBasicMaterial, DoubleSide, SphereGeometry, MeshStandardMaterial } from "three";
+import { Object3D, Quaternion, Vector3, Mesh, RingGeometry, MeshBasicMaterial, DoubleSide, SphereGeometry, MeshStandardMaterial, Material } from "three";
 import { latLngToPosition } from "@/utils/coordinates";
 import { PlantData } from "@/data/plants";
 
@@ -15,6 +15,7 @@ interface PlantModelProps {
   plant: PlantData;
   isHovered: boolean;
   isSelected: boolean;
+  dimmed: boolean;
   onHoverStart: () => void;
   onHoverEnd: () => void;
   onClick: () => void;
@@ -27,6 +28,7 @@ export default function PlantModel({
   plant,
   isHovered,
   isSelected,
+  dimmed,
   onHoverStart,
   onHoverEnd,
   onClick,
@@ -78,6 +80,8 @@ export default function PlantModel({
   const targetScale = isHovered ? 1.3 : 1;
   const currentScale = useRef(1);
 
+  const dimmedOpacity = useRef(0.15);
+
   useFrame((_, delta) => {
     currentScale.current +=
       (targetScale - currentScale.current) * Math.min(delta * 8, 1);
@@ -85,7 +89,30 @@ export default function PlantModel({
     if (groupRef.current) {
       groupRef.current.scale.setScalar(currentScale.current);
     }
+
+    // Smooth dimmed transition
+    const targetDimmed = dimmed ? 0.15 : 1;
+    dimmedOpacity.current +=
+      (targetDimmed - dimmedOpacity.current) * Math.min(delta * 6, 1);
+
+    // Apply opacity to all meshes in cloned scene
+    clonedScene.traverse((child) => {
+      if (child instanceof Mesh && child.material) {
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+        materials.forEach((mat: Material) => {
+          if ("opacity" in mat && "transparent" in mat) {
+            mat.opacity = dimmedOpacity.current;
+            mat.transparent = true;
+            mat.depthWrite = dimmedOpacity.current > 0.5;
+          }
+        });
+      }
+    });
   });
+
+  const dotVisible = dimmedOpacity.current > 0.1; // Only show dot if not completely dimmed
 
   return (
     <group
@@ -94,7 +121,7 @@ export default function PlantModel({
       quaternion={rotation}
       onPointerEnter={(e) => {
         e.stopPropagation();
-        onHoverStart();
+        if (!dimmed) onHoverStart();
       }}
       onPointerLeave={(e) => {
         e.stopPropagation();
@@ -102,21 +129,24 @@ export default function PlantModel({
       }}
       onClick={(e) => {
         e.stopPropagation();
-        onClick();
+        if (!dimmed) onClick();
       }}
     >
-      {/* Base dot marker — always visible */}
+      {/* Base dot marker */}
       <mesh geometry={dotGeo} position={[0, 0.02, 0]}>
         <meshStandardMaterial
           color={isSelected ? "#ffd700" : isHovered ? "#4ade80" : "#ffffff"}
           emissive={isSelected ? "#ffd700" : isHovered ? "#22c55e" : "#888888"}
           emissiveIntensity={0.6}
           roughness={0.3}
+          transparent
+          opacity={dimmed ? 0.15 : 1}
+          depthWrite={!dimmed}
         />
       </mesh>
 
       {/* Hover/select glow ring */}
-      {(isHovered || isSelected) && (
+      {(isHovered || isSelected) && !dimmed && (
         <mesh
           geometry={ringGeo}
           material={ringMaterial}
