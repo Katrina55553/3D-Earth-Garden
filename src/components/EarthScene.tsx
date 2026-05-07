@@ -1,9 +1,24 @@
 "use client";
 
+import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Earth from "./Earth";
 import Starfield from "./Starfield";
+import PlantModel from "./PlantModel";
+import plants from "@/data/plants";
+
+function PlantsLayer() {
+  return (
+    <>
+      {plants.map((plant) => (
+        <Suspense key={plant.id} fallback={null}>
+          <PlantModel plant={plant} />
+        </Suspense>
+      ))}
+    </>
+  );
+}
 
 export default function EarthScene() {
   return (
@@ -20,6 +35,7 @@ export default function EarthScene() {
 
       <Starfield />
       <Earth />
+      <PlantsLayer />
       <OrbitControls
         enableDamping
         dampingFactor={0.08}
