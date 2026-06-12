@@ -11,9 +11,7 @@ interface EarthProps {
 
 export default function Earth({ onClick }: EarthProps) {
   const earthRef = useRef<Mesh>(null);
-  const earthTexture = useTexture(
-    "https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg"
-  );
+  const earthTexture = useTexture("/textures/earth.jpg");
 
   useFrame((_, delta) => {
     if (earthRef.current) {

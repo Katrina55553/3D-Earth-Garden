@@ -1,12 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { useAppContext, getFilterOptions } from "@/store/AppContext";
 import type { ContinentFilter, TypeFilter, ClimateFilter } from "@/store/AppContext";
 import { motion } from "framer-motion";
-
-const { continents, types, climates } = getFilterOptions();
-
-const continentTabs: ContinentFilter[] = ["全部", ...continents];
 
 export default function ControlPanel() {
   const {
@@ -17,6 +14,9 @@ export default function ControlPanel() {
     setTypeFilter,
     setClimateFilter,
   } = useAppContext();
+
+  const { continents, types, climates } = useMemo(() => getFilterOptions(), []);
+  const continentTabs: ContinentFilter[] = useMemo(() => ["全部", ...continents], [continents]);
 
   return (
     <motion.div

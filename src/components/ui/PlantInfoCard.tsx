@@ -7,12 +7,11 @@ export default function PlantInfoCard() {
   const { selectedSpeciesName, selectedSpeciesPlants, setSelectedSpecies } =
     useAppContext();
 
-  if (selectedSpeciesPlants.length === 0) return null;
   const plant = selectedSpeciesPlants[0];
 
   return (
     <AnimatePresence>
-      {selectedSpeciesName && (
+      {selectedSpeciesName && plant && (
         <motion.div
           key={selectedSpeciesName}
           initial={{ opacity: 0, x: 40, scale: 0.95 }}

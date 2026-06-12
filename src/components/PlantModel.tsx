@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import {
@@ -12,14 +12,9 @@ import {
   MeshBasicMaterial,
   DoubleSide,
   Material,
-  Color,
 } from "three";
 import { latLngToPosition } from "@/utils/coordinates";
 import { PlantData } from "@/data/plants";
-
-const up = new Vector3(0, 1, 0);
-const _quat = new Quaternion();
-const _normal = new Vector3();
 
 interface PlantModelProps {
   plant: PlantData;
@@ -31,7 +26,7 @@ interface PlantModelProps {
   onClick: () => void;
 }
 
-// Shared grass-like ground glow disc
+// Shared grass-like ground glow disc (module-level singleton)
 const glowGeo = new RingGeometry(0.04, 0.14, 32);
 
 export default function PlantModel({
@@ -51,9 +46,10 @@ export default function PlantModel({
   );
 
   const rotation = useMemo(() => {
-    _normal.set(...position).normalize();
-    _quat.setFromUnitVectors(up, _normal);
-    return _quat;
+    const normal = new Vector3(...position).normalize();
+    const quat = new Quaternion();
+    quat.setFromUnitVectors(new Vector3(0, 1, 0), normal);
+    return quat;
   }, [position]);
 
   const { scene } = useGLTF(plant.modelPath);
@@ -68,23 +64,45 @@ export default function PlantModel({
     return cloned;
   }, [scene]);
 
+  // Cache material references once to avoid per-frame scene traversal
+  const meshMaterials = useMemo(() => {
+    const mats: Material[] = [];
+    clonedScene.traverse((child) => {
+      if (child instanceof Mesh && child.material) {
+        const arr = Array.isArray(child.material) ? child.material : [child.material];
+        for (const m of arr) mats.push(m);
+      }
+    });
+    return mats;
+  }, [clonedScene]);
+
   const glowRotation = useMemo(() => {
-    _normal.set(...position).normalize();
+    const normal = new Vector3(...position).normalize();
     const q = new Quaternion();
-    q.setFromUnitVectors(new Vector3(0, 0, 1), _normal);
+    q.setFromUnitVectors(new Vector3(0, 0, 1), normal);
     return q;
   }, [position]);
 
   const glowMaterial = useMemo(() => {
-    const color = isSelected ? "#ffd700" : "#4ade80";
     return new MeshBasicMaterial({
-      color,
+      color: "#4ade80",
       side: DoubleSide,
       transparent: true,
-      opacity: isSelected ? 0.7 : 0.45,
+      opacity: 0.45,
       depthWrite: false,
     });
-  }, [isSelected]);
+  }, []);
+
+  // Update glow material reactively (no new allocation)
+  useEffect(() => {
+    glowMaterial.color.set(isSelected ? "#ffd700" : "#4ade80");
+    glowMaterial.opacity = isSelected ? 0.7 : 0.45;
+  }, [isSelected, glowMaterial]);
+
+  // Cleanup glow material on unmount
+  useEffect(() => {
+    return () => { glowMaterial.dispose(); glowGeo.dispose(); };
+  }, [glowMaterial]);
 
   const targetScale = isHovered ? 1.35 : 1;
   const currentScale = useRef(1);
@@ -103,21 +121,15 @@ export default function PlantModel({
     dimmedOpacity.current +=
       (targetDimmed - dimmedOpacity.current) * Math.min(delta * 6, 1);
 
-    // Apply opacity to all meshes in cloned scene
-    clonedScene.traverse((child) => {
-      if (child instanceof Mesh && child.material) {
-        const materials = Array.isArray(child.material)
-          ? child.material
-          : [child.material];
-        materials.forEach((mat: Material) => {
-          if ("opacity" in mat && "transparent" in mat) {
-            mat.opacity = dimmedOpacity.current;
-            mat.transparent = true;
-            mat.depthWrite = dimmedOpacity.current > 0.5;
-          }
-        });
+    // Apply opacity to cached materials (no traverse)
+    const opacity = dimmedOpacity.current;
+    for (const mat of meshMaterials) {
+      if ("opacity" in mat && "transparent" in mat) {
+        mat.opacity = opacity;
+        mat.transparent = true;
+        mat.depthWrite = opacity > 0.5;
       }
-    });
+    }
   });
 
   return (

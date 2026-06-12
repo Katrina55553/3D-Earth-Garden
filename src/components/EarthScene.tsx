@@ -181,16 +181,13 @@ function SceneContent() {
 
   const handleHover = useCallback((id: string | null) => {
     setHoveredId(id);
-    document.body.style.cursor = id ? "pointer" : "default";
+    const canvas = document.querySelector("canvas");
+    if (canvas) canvas.classList.toggle("hovering", !!id);
   }, []);
 
   const handleSelect = useCallback(
     (plant: PlantData | null) => {
-      if (!plant) {
-        setSelectedSpecies(null);
-        flyBackToDefault(camera, controlsRef.current, isAnimating);
-      } else if (selectedSpeciesName === plant.name) {
-        // Click same species → deselect
+      if (!plant || selectedSpeciesName === plant.name) {
         setSelectedSpecies(null);
         flyBackToDefault(camera, controlsRef.current, isAnimating);
       } else {
@@ -204,7 +201,6 @@ function SceneContent() {
   const handleEarthClick = useCallback(() => {
     if (selectedSpeciesName) {
       setSelectedSpecies(null);
-      document.body.style.cursor = "default";
       flyBackToDefault(camera, controlsRef.current, isAnimating);
     }
   }, [camera, selectedSpeciesName, setSelectedSpecies]);
