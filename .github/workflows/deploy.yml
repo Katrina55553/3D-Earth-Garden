@@ -32,6 +32,8 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          BASE_PATH: /3d-earth-garden
         run: npm run build
 
       - name: Upload artifact
