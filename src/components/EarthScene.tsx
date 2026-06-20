@@ -1,11 +1,9 @@
 "use client";
 
 import {
-  Suspense,
-  useState,
   useCallback,
   useRef,
-  useMemo,
+  useEffect,
   Component,
   type ReactNode,
 } from "react";
@@ -15,46 +13,13 @@ import gsap from "gsap";
 import * as THREE from "three";
 import Earth from "./Earth";
 import Starfield from "./Starfield";
-import PlantModel from "./PlantModel";
-import plants, { PlantData } from "@/data/plants";
-import { latLngToPosition } from "@/utils/coordinates";
+import countries, { CountryData } from "@/data/countries";
+import {
+  haversineDistanceKm,
+  latLngToPosition,
+} from "@/utils/coordinates";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useAppContext } from "@/store/AppContext";
-
-function PlantsLayer({
-  hoveredId,
-  onHover,
-  onSelect,
-}: {
-  hoveredId: string | null;
-  onHover: (id: string | null) => void;
-  onSelect: (plant: PlantData | null) => void;
-}) {
-  const { filteredPlants, selectedSpeciesName } = useAppContext();
-
-  const visibleSet = useMemo(
-    () => new Set(filteredPlants.map((p) => p.id)),
-    [filteredPlants]
-  );
-
-  return (
-    <>
-      {plants.map((plant) => (
-        <Suspense key={plant.id} fallback={null}>
-          <PlantModel
-            plant={plant}
-            isHovered={hoveredId === plant.id}
-            isSelected={selectedSpeciesName === plant.name}
-            dimmed={!visibleSet.has(plant.id)}
-            onHoverStart={() => onHover(plant.id)}
-            onHoverEnd={() => onHover(null)}
-            onClick={() => onSelect(plant)}
-          />
-        </Suspense>
-      ))}
-    </>
-  );
-}
 
 function flyBackToDefault(
   camera: THREE.Camera,
@@ -110,28 +75,19 @@ function flyBackToDefault(
   );
 }
 
-function flyToSpecies(
-  speciesName: string,
+function flyToCountry(
+  country: CountryData,
   camera: THREE.Camera,
   controls: OrbitControlsImpl | null,
   animatingRef: React.MutableRefObject<boolean>
 ) {
   if (animatingRef.current) return;
-
-  const group = plants.filter((p) => p.name === speciesName);
-  if (group.length === 0) return;
-
-  // Compute centroid of all plants in this species
-  const centroid = new THREE.Vector3(0, 0, 0);
-  group.forEach((p) => {
-    const pos = latLngToPosition(p.latitude, p.longitude, 1.22);
-    centroid.add(new THREE.Vector3(...pos));
-  });
-  centroid.divideScalar(group.length);
+  const centroid = new THREE.Vector3(
+    ...latLngToPosition(country.latitude, country.longitude, 1.22)
+  );
 
   const normal = centroid.clone().normalize();
-  // Offset camera outward based on group spread
-  const cameraOffset = 0.7 + group.length * 0.04;
+  const cameraOffset = 0.92;
   const cameraTarget = centroid.clone().add(normal.multiplyScalar(cameraOffset));
 
   animatingRef.current = true;
@@ -181,37 +137,60 @@ function flyToSpecies(
 }
 
 function SceneContent() {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const controlsRef = useRef<OrbitControlsImpl>(null);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const isAnimating = useRef(false);
-  const { selectedSpeciesName, setSelectedSpecies } = useAppContext();
+  const previousSelectionRef = useRef<string | null>(null);
+  const { filteredCountries, selectedCountry, setSelectedCountry } =
+    useAppContext();
 
-  const handleHover = useCallback((id: string | null) => {
-    setHoveredId(id);
-    const canvas = document.querySelector("canvas");
-    if (canvas) canvas.classList.toggle("hovering", !!id);
-  }, []);
+  useEffect(() => {
+    gl.domElement.style.cursor = "grab";
+    return () => {
+      gl.domElement.style.cursor = "auto";
+    };
+  }, [gl]);
 
-  const handleSelect = useCallback(
-    (plant: PlantData | null) => {
-      if (!plant || selectedSpeciesName === plant.name) {
-        setSelectedSpecies(null);
+  useEffect(() => {
+    if (previousSelectionRef.current === selectedCountry?.id) return;
+
+    if (!selectedCountry) {
+      if (previousSelectionRef.current) {
         flyBackToDefault(camera, controlsRef.current, isAnimating);
-      } else {
-        setSelectedSpecies(plant.name);
-        flyToSpecies(plant.name, camera, controlsRef.current, isAnimating);
+      }
+    } else {
+      flyToCountry(selectedCountry, camera, controlsRef.current, isAnimating);
+    }
+
+    previousSelectionRef.current = selectedCountry?.id ?? null;
+  }, [camera, selectedCountry]);
+
+  const handleSurfaceSelect = useCallback(
+    (latitude: number, longitude: number) => {
+      const scope = filteredCountries.length > 0 ? filteredCountries : countries;
+      const nearestCountry = scope.reduce((closest, current) => {
+        if (!closest) return current;
+        const currentDistance = haversineDistanceKm(
+          latitude,
+          longitude,
+          current.latitude,
+          current.longitude
+        );
+        const closestDistance = haversineDistanceKm(
+          latitude,
+          longitude,
+          closest.latitude,
+          closest.longitude
+        );
+        return currentDistance < closestDistance ? current : closest;
+      }, scope[0]);
+
+      if (nearestCountry) {
+        setSelectedCountry(nearestCountry.id);
       }
     },
-    [camera, selectedSpeciesName, setSelectedSpecies]
+    [filteredCountries, setSelectedCountry]
   );
-
-  const handleEarthClick = useCallback(() => {
-    if (selectedSpeciesName) {
-      setSelectedSpecies(null);
-      flyBackToDefault(camera, controlsRef.current, isAnimating);
-    }
-  }, [camera, selectedSpeciesName, setSelectedSpecies]);
 
   return (
     <>
@@ -222,12 +201,7 @@ function SceneContent() {
       <directionalLight position={[-5, -1, -3]} intensity={0.3} />
 
       <Starfield />
-      <Earth onClick={handleEarthClick} />
-      <PlantsLayer
-        hoveredId={hoveredId}
-        onHover={handleHover}
-        onSelect={handleSelect}
-      />
+      <Earth onSurfaceSelect={handleSurfaceSelect} />
       <OrbitControls
         ref={controlsRef}
         enableDamping
@@ -252,7 +226,7 @@ function LoadingOverlay() {
       }`}
     >
       <div className="flex flex-col items-center gap-3">
-        <div className="text-sm tracking-widest text-white/70">加载中</div>
+        <div className="text-sm tracking-widest text-white/70">加载地理场景</div>
         <div className="h-1 w-48 overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full bg-emerald-400 transition-all duration-300"
@@ -283,7 +257,7 @@ class SceneErrorBoundary extends Component<
       return (
         <div className="absolute inset-0 flex items-center justify-center bg-[#020210]">
           <div className="space-y-2 text-center">
-            <p className="text-lg text-white/80">3D 场景加载失败</p>
+            <p className="text-lg text-white/80">地理场景加载失败</p>
             <p className="text-sm text-white/40">请刷新页面重试</p>
           </div>
         </div>

@@ -23,6 +23,51 @@ export function latLngToPosition(
 }
 
 /**
+ * Convert a 3D point on the globe surface back into latitude/longitude.
+ */
+export function positionToLatLng(
+  x: number,
+  y: number,
+  z: number
+): { latitude: number; longitude: number } {
+  const radius = Math.sqrt(x ** 2 + y ** 2 + z ** 2);
+  const latitude = Math.asin(y / radius) * (180 / Math.PI);
+  const theta = Math.atan2(z, -x) * (180 / Math.PI);
+  const longitude = normalizeLongitude(theta - 180);
+
+  return { latitude, longitude };
+}
+
+/**
+ * Great-circle distance in kilometers between two coordinate pairs.
+ */
+export function haversineDistanceKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.asin(Math.sqrt(a));
+}
+
+function normalizeLongitude(longitude: number): number {
+  let normalized = longitude;
+  while (normalized <= -180) normalized += 360;
+  while (normalized > 180) normalized -= 360;
+  return normalized;
+}
+
+/**
  * Calculate the normal vector at a point on the sphere surface.
  * For a unit sphere centered at origin, the normal is the normalized position.
  */

@@ -5,25 +5,20 @@ import {
   useContext,
   useState,
   useMemo,
+  useEffect,
   ReactNode,
 } from "react";
-import plants, { PlantData } from "@/data/plants";
+import countries, { CountryData } from "@/data/countries";
 
 export type ContinentFilter = "全部" | string;
-export type TypeFilter = "全部" | string;
-export type ClimateFilter = "全部" | string;
 
 interface AppContextValue {
-  selectedSpeciesName: string | null;
-  selectedSpeciesPlants: PlantData[];
+  selectedCountryId: string | null;
+  selectedCountry: CountryData | null;
   continentFilter: ContinentFilter;
-  typeFilter: TypeFilter;
-  climateFilter: ClimateFilter;
-  setSelectedSpecies: (name: string | null) => void;
+  setSelectedCountry: (id: string | null) => void;
   setContinentFilter: (filter: ContinentFilter) => void;
-  setTypeFilter: (filter: TypeFilter) => void;
-  setClimateFilter: (filter: ClimateFilter) => void;
-  filteredPlants: PlantData[];
+  filteredCountries: CountryData[];
   visibleCount: number;
   totalCount: number;
 }
@@ -31,53 +26,51 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [selectedSpeciesName, setSelectedSpeciesName] = useState<string | null>(null);
+  const [selectedCountryId, setSelectedCountryId] = useState<string | null>(null);
   const [continentFilter, setContinentFilter] = useState<ContinentFilter>("全部");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("全部");
-  const [climateFilter, setClimateFilter] = useState<ClimateFilter>("全部");
 
-  const filteredPlants = useMemo(() => {
-    return plants.filter((plant) => {
-      if (continentFilter !== "全部" && plant.continent !== continentFilter)
-        return false;
-      if (typeFilter !== "全部" && plant.vegetationType !== typeFilter)
-        return false;
-      if (climateFilter !== "全部" && plant.climateFeature !== climateFilter)
+  const filteredCountries = useMemo(() => {
+    return countries.filter((country) => {
+      if (continentFilter !== "全部" && country.continent !== continentFilter)
         return false;
       return true;
     });
-  }, [continentFilter, typeFilter, climateFilter]);
+  }, [continentFilter]);
 
-  const selectedSpeciesPlants = useMemo(
+  const selectedCountry = useMemo(
     () =>
-      selectedSpeciesName
-        ? plants.filter((p) => p.name === selectedSpeciesName)
-        : [],
-    [selectedSpeciesName]
+      selectedCountryId
+        ? countries.find((country) => country.id === selectedCountryId) ?? null
+        : null,
+    [selectedCountryId]
   );
+
+  useEffect(() => {
+    if (!selectedCountryId) return;
+    const isVisible = filteredCountries.some(
+      (country) => country.id === selectedCountryId
+    );
+    if (!isVisible) {
+      setSelectedCountryId(null);
+    }
+  }, [filteredCountries, selectedCountryId]);
 
   const value = useMemo<AppContextValue>(
     () => ({
-      selectedSpeciesName,
-      selectedSpeciesPlants,
+      selectedCountryId,
+      selectedCountry,
       continentFilter,
-      typeFilter,
-      climateFilter,
-      setSelectedSpecies: setSelectedSpeciesName,
+      setSelectedCountry: setSelectedCountryId,
       setContinentFilter,
-      setTypeFilter,
-      setClimateFilter,
-      filteredPlants,
-      visibleCount: filteredPlants.length,
-      totalCount: plants.length,
+      filteredCountries,
+      visibleCount: filteredCountries.length,
+      totalCount: countries.length,
     }),
     [
-      selectedSpeciesName,
-      selectedSpeciesPlants,
+      selectedCountryId,
+      selectedCountry,
       continentFilter,
-      typeFilter,
-      climateFilter,
-      filteredPlants,
+      filteredCountries,
     ]
   );
 
@@ -91,8 +84,6 @@ export function useAppContext() {
 }
 
 export function getFilterOptions() {
-  const continents = [...new Set(plants.map((p) => p.continent))];
-  const types = [...new Set(plants.map((p) => p.vegetationType))];
-  const climates = [...new Set(plants.map((p) => p.climateFeature))];
-  return { continents, types, climates };
+  const continents = [...new Set(countries.map((country) => country.continent))];
+  return { continents };
 }
