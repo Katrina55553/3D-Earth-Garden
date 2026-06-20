@@ -33,7 +33,7 @@ jobs:
 
       - name: Build
         env:
-          BASE_PATH: /3d-earth-garden
+          BASE_PATH: /${{ github.event.repository.name }}
         run: npm run build
 
       - name: Upload artifact
