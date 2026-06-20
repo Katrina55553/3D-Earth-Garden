@@ -13,6 +13,7 @@ import gsap from "gsap";
 import * as THREE from "three";
 import Earth from "./Earth";
 import Starfield from "./Starfield";
+import SelectedCountryMarker from "./SelectedCountryMarker";
 import countries, { CountryData } from "@/data/countries";
 import {
   haversineDistanceKm,
@@ -202,6 +203,7 @@ function SceneContent() {
 
       <Starfield />
       <Earth onSurfaceSelect={handleSurfaceSelect} />
+      {selectedCountry && <SelectedCountryMarker country={selectedCountry} />}
       <OrbitControls
         ref={controlsRef}
         enableDamping
