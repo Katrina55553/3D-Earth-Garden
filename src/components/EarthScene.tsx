@@ -1,8 +1,16 @@
 "use client";
 
-import { Suspense, useState, useCallback, useRef, useMemo } from "react";
+import {
+  Suspense,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+  Component,
+  type ReactNode,
+} from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, useProgress } from "@react-three/drei";
 import gsap from "gsap";
 import * as THREE from "three";
 import Earth from "./Earth";
@@ -232,14 +240,70 @@ function SceneContent() {
   );
 }
 
+// DOM overlay shown while GLB models / textures are streaming in.
+// useProgress subscribes to THREE.DefaultLoadingManager, so it works
+// outside the R3F Canvas.
+function LoadingOverlay() {
+  const { progress, active } = useProgress();
+  return (
+    <div
+      className={`pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[#020210] transition-opacity duration-700 ${
+        active ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <div className="flex flex-col items-center gap-3">
+        <div className="text-sm tracking-widest text-white/70">加载中</div>
+        <div className="h-1 w-48 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full bg-emerald-400 transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="text-xs text-white/40">{Math.round(progress)}%</div>
+      </div>
+    </div>
+  );
+}
+
+// Catches model/texture load failures so a single bad asset doesn't blank
+// the whole page. Must live outside the Canvas (R3F children aren't DOM).
+class SceneErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#020210]">
+          <div className="space-y-2 text-center">
+            <p className="text-lg text-white/80">3D 场景加载失败</p>
+            <p className="text-sm text-white/40">请刷新页面重试</p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function EarthScene() {
   return (
-    <Canvas
-      className="absolute inset-0 h-full w-full"
-      camera={{ position: [0, 1.5, 5], fov: 45 }}
-      gl={{ antialias: true, alpha: false }}
-    >
-      <SceneContent />
-    </Canvas>
+    <SceneErrorBoundary>
+      <LoadingOverlay />
+      <Canvas
+        className="absolute inset-0 h-full w-full"
+        camera={{ position: [0, 1.5, 5], fov: 45 }}
+        gl={{ antialias: true, alpha: false }}
+      >
+        <SceneContent />
+      </Canvas>
+    </SceneErrorBoundary>
   );
 }

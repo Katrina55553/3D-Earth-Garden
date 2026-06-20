@@ -4,10 +4,9 @@ import { useMemo } from "react";
 import * as THREE from "three";
 
 export default function Starfield() {
-  const stars = useMemo(() => {
+  const positions = useMemo(() => {
     const count = 2000;
-    const positions = new Float32Array(count * 3);
-    const sizes = new Float32Array(count);
+    const arr = new Float32Array(count * 3);
 
     for (let i = 0; i < count; i++) {
       // Random position on a large sphere
@@ -15,14 +14,12 @@ export default function Starfield() {
       const phi = Math.acos(2 * Math.random() - 1);
       const radius = 20 + Math.random() * 30;
 
-      positions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
-      positions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * radius;
-      positions[i * 3 + 2] = Math.cos(phi) * radius;
-
-      sizes[i] = Math.random() * 2 + 0.5;
+      arr[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
+      arr[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * radius;
+      arr[i * 3 + 2] = Math.cos(phi) * radius;
     }
 
-    return { positions, sizes };
+    return arr;
   }, []);
 
   return (
@@ -30,11 +27,7 @@ export default function Starfield() {
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          args={[stars.positions, 3]}
-        />
-        <bufferAttribute
-          attach="attributes-size"
-          args={[stars.sizes, 1]}
+          args={[positions, 3]}
         />
       </bufferGeometry>
       <pointsMaterial

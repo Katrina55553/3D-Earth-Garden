@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import { Mesh } from "three";
+import { assetPath } from "@/utils/assetPath";
 
 interface EarthProps {
   onClick?: () => void;
@@ -11,7 +12,7 @@ interface EarthProps {
 
 export default function Earth({ onClick }: EarthProps) {
   const earthRef = useRef<Mesh>(null);
-  const earthTexture = useTexture("/textures/earth.jpg");
+  const earthTexture = useTexture(assetPath("/textures/earth.jpg"));
 
   useFrame((_, delta) => {
     if (earthRef.current) {

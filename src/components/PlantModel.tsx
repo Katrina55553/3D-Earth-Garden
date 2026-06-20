@@ -14,7 +14,8 @@ import {
   Material,
 } from "three";
 import { latLngToPosition } from "@/utils/coordinates";
-import { PlantData } from "@/data/plants";
+import { assetPath } from "@/utils/assetPath";
+import plants, { PlantData } from "@/data/plants";
 
 interface PlantModelProps {
   plant: PlantData;
@@ -52,13 +53,26 @@ export default function PlantModel({
     return quat;
   }, [position]);
 
-  const { scene } = useGLTF(plant.modelPath);
+  const { scene } = useGLTF(assetPath(plant.modelPath));
   const clonedScene = useMemo(() => {
     const cloned = scene.clone();
     cloned.traverse((child) => {
       if (child instanceof Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        // Clone materials per instance. scene.clone() only shallow-clones
+        // the scene graph and shares material references, so without this
+        // every plant using the same model would share one material object
+        // and dimming one (via opacity in useFrame) would dim them all —
+        // a real bug for species that span multiple filter groups
+        // (e.g. 百合 appears in both 亚洲 and 欧洲).
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material = child.material.map((m) => m.clone());
+          } else {
+            child.material = child.material.clone();
+          }
+        }
       }
     });
     return cloned;
@@ -99,10 +113,15 @@ export default function PlantModel({
     glowMaterial.opacity = isSelected ? 0.7 : 0.45;
   }, [isSelected, glowMaterial]);
 
-  // Cleanup glow material on unmount
+  // Cleanup per-instance resources on unmount.
+  // NOTE: glowGeo is a shared module-level singleton — never dispose it here,
+  // otherwise the first plant to unmount breaks the glow disc for every other.
   useEffect(() => {
-    return () => { glowMaterial.dispose(); glowGeo.dispose(); };
-  }, [glowMaterial]);
+    return () => {
+      meshMaterials.forEach((m) => m.dispose());
+      glowMaterial.dispose();
+    };
+  }, [meshMaterials, glowMaterial]);
 
   const targetScale = isHovered ? 1.35 : 1;
   const currentScale = useRef(1);
@@ -167,11 +186,7 @@ export default function PlantModel({
   );
 }
 
-// Preload models
-useGLTF.preload("/models/妗傝姳.glb");
-useGLTF.preload("/models/妗夋爲.glb");
-useGLTF.preload("/models/姣涚.glb");
-useGLTF.preload("/models/楂樺北闆幉.glb");
-useGLTF.preload("/models/鍖楃編绾㈡潐.glb");
-useGLTF.preload("/models/鐚撮潰鍖呮爲.glb");
-useGLTF.preload("/models/鐧惧悎.glb");
+// Preload all unique models used by the plant dataset (stays in sync with data)
+[...new Set(plants.map((p) => p.modelPath))].forEach((path) =>
+  useGLTF.preload(assetPath(path))
+);
