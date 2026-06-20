@@ -16,10 +16,41 @@ body {
   background: #020210;
 }
 
+/* Subtle vignette + edge glow for atmospheric depth */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.45) 100%),
+    radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.06), transparent 40%);
+}
+
 canvas {
   cursor: default;
 }
 
 canvas.hovering {
   cursor: pointer;
+}
+
+/* Refined scrollbar for the info card */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
