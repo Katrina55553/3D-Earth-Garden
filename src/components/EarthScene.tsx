@@ -22,13 +22,21 @@ import {
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useAppContext } from "@/store/AppContext";
 
+// Globe radius must match Earth.tsx sphereGeometry
+const GLOBE_RADIUS = 1.2;
+// How far the camera sits above the target point on the surface
+const CAMERA_OFFSET = 0.92;
+
 function flyBackToDefault(
   camera: THREE.Camera,
   controls: OrbitControlsImpl | null,
-  animatingRef: React.MutableRefObject<boolean>
+  timelineRef: React.MutableRefObject<gsap.core.Timeline | null>
 ) {
-  if (animatingRef.current) return;
-  animatingRef.current = true;
+  // Kill any in-flight animation so the new one starts immediately
+  if (timelineRef.current) {
+    timelineRef.current.kill();
+    timelineRef.current = null;
+  }
   if (controls) controls.enabled = false;
 
   const startPos = camera.position.clone();
@@ -40,7 +48,7 @@ function flyBackToDefault(
 
   const tl = gsap.timeline({
     onComplete: () => {
-      animatingRef.current = false;
+      timelineRef.current = null;
       if (controls) {
         controls.target.copy(endTarget);
         controls.update();
@@ -48,6 +56,7 @@ function flyBackToDefault(
       }
     },
   });
+  timelineRef.current = tl;
 
   tl.to(
     startPos,
@@ -80,18 +89,21 @@ function flyToCountry(
   country: CountryData,
   camera: THREE.Camera,
   controls: OrbitControlsImpl | null,
-  animatingRef: React.MutableRefObject<boolean>
+  timelineRef: React.MutableRefObject<gsap.core.Timeline | null>
 ) {
-  if (animatingRef.current) return;
+  // Kill any in-flight animation so the new one starts immediately
+  if (timelineRef.current) {
+    timelineRef.current.kill();
+    timelineRef.current = null;
+  }
+
   const centroid = new THREE.Vector3(
-    ...latLngToPosition(country.latitude, country.longitude, 1.22)
+    ...latLngToPosition(country.latitude, country.longitude, GLOBE_RADIUS)
   );
 
   const normal = centroid.clone().normalize();
-  const cameraOffset = 0.92;
-  const cameraTarget = centroid.clone().add(normal.multiplyScalar(cameraOffset));
+  const cameraTarget = centroid.clone().add(normal.multiplyScalar(CAMERA_OFFSET));
 
-  animatingRef.current = true;
   if (controls) controls.enabled = false;
 
   const startPos = camera.position.clone();
@@ -101,7 +113,7 @@ function flyToCountry(
 
   const tl = gsap.timeline({
     onComplete: () => {
-      animatingRef.current = false;
+      timelineRef.current = null;
       if (controls) {
         controls.target.copy(centroid);
         controls.update();
@@ -109,6 +121,7 @@ function flyToCountry(
       }
     },
   });
+  timelineRef.current = tl;
 
   tl.to(
     startPos,
@@ -140,7 +153,7 @@ function flyToCountry(
 function SceneContent() {
   const { camera, gl } = useThree();
   const controlsRef = useRef<OrbitControlsImpl>(null);
-  const isAnimating = useRef(false);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const previousSelectionRef = useRef<string | null>(null);
   const { filteredCountries, selectedCountry, setSelectedCountry } =
     useAppContext();
@@ -152,15 +165,26 @@ function SceneContent() {
     };
   }, [gl]);
 
+  // Kill any in-flight GSAP timeline on unmount so it can't mutate a
+  // disposed camera.
+  useEffect(() => {
+    return () => {
+      if (timelineRef.current) {
+        timelineRef.current.kill();
+        timelineRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (previousSelectionRef.current === selectedCountry?.id) return;
 
     if (!selectedCountry) {
       if (previousSelectionRef.current) {
-        flyBackToDefault(camera, controlsRef.current, isAnimating);
+        flyBackToDefault(camera, controlsRef.current, timelineRef);
       }
     } else {
-      flyToCountry(selectedCountry, camera, controlsRef.current, isAnimating);
+      flyToCountry(selectedCountry, camera, controlsRef.current, timelineRef);
     }
 
     previousSelectionRef.current = selectedCountry?.id ?? null;
@@ -169,25 +193,31 @@ function SceneContent() {
   const handleSurfaceSelect = useCallback(
     (latitude: number, longitude: number) => {
       const scope = filteredCountries.length > 0 ? filteredCountries : countries;
-      const nearestCountry = scope.reduce((closest, current) => {
-        if (!closest) return current;
-        const currentDistance = haversineDistanceKm(
+      // Single-pass minimum: cache the best distance instead of recomputing
+      // it for the incumbent on every iteration.
+      let nearest = scope[0];
+      let nearestDist = haversineDistanceKm(
+        latitude,
+        longitude,
+        nearest.latitude,
+        nearest.longitude
+      );
+      for (let i = 1; i < scope.length; i++) {
+        const c = scope[i];
+        const d = haversineDistanceKm(
           latitude,
           longitude,
-          current.latitude,
-          current.longitude
+          c.latitude,
+          c.longitude
         );
-        const closestDistance = haversineDistanceKm(
-          latitude,
-          longitude,
-          closest.latitude,
-          closest.longitude
-        );
-        return currentDistance < closestDistance ? current : closest;
-      }, scope[0]);
+        if (d < nearestDist) {
+          nearest = c;
+          nearestDist = d;
+        }
+      }
 
-      if (nearestCountry) {
-        setSelectedCountry(nearestCountry.id);
+      if (nearest) {
+        setSelectedCountry(nearest.id);
       }
     },
     [filteredCountries, setSelectedCountry]

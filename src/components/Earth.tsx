@@ -46,8 +46,6 @@ export default function Earth({ onSurfaceSelect }: EarthProps) {
 
   return (
     <mesh
-      castShadow
-      receiveShadow
       onPointerDown={handlePointerDown}
       onClick={handleClick}
     >
